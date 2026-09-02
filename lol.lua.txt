@@ -1,4 +1,4 @@
--- ALL IN ONE (FINAL FIXED)
+-- ALL IN ONE (FINAL)
 -- X = Menu | Z = AIM | F = FLY
 
 local Players = game:GetService("Players")
@@ -522,8 +522,18 @@ local function SetSpeed(v)
     Speed = v
 end
 
--- MOBILE BUTTON
+-- MOBILE BUTTON (ТОЛЬКО ДЛЯ ТЕЛЕФОНОВ)
 local function CreateMobileButton()
+    -- Если есть мышь или клавиатура — это ПК, кнопка не нужна
+    if UserInputService.MouseEnabled or UserInputService.KeyboardEnabled then
+        return nil
+    end
+    
+    -- Если нет тача — тоже не нужна
+    if not UserInputService.TouchEnabled then
+        return nil
+    end
+    
     if mobileButton then mobileButton:Destroy() mobileButton = nil end
     local btnGui = Instance.new("ScreenGui")
     btnGui.Parent = LocalPlayer.PlayerGui
@@ -577,7 +587,7 @@ local function CreateMenu()
     main.BorderSizePixel = 1
     main.BorderColor3 = Color3.fromRGB(255, 40, 40)
     main.Parent = gui
-    main.Visible = true  -- ПОКАЗЫВАЕМ СРАЗУ
+    main.Visible = true
     main.Name = "Main"
     
     -- Header
@@ -931,7 +941,15 @@ ShowLoadingScreen()
 CreateMenu()
 CreateFOVCircle()
 ToggleFOVCircle(false)
-CreateMobileButton()
+
+-- Создаём кнопку только если это телефон
+local mobileCreated = CreateMobileButton()
+if mobileCreated then
+    print("Mobile button created for touch device")
+else
+    print("Mobile button hidden (PC detected)")
+end
+
 ScanAll()
 
 task.wait(0.5)
