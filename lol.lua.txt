@@ -1,14 +1,16 @@
--- ALL IN ONE (ADMIN STYLE)
--- X = Menu | Z = AIM | F = FLY
+-- ALL IN ONE (FINAL)
+-- X = Menu | Z = AIM | F = FLY | E = DASH | B = BunnyHop
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 local Mouse = LocalPlayer:GetMouse()
 
+-- ========== НАСТРОЙКИ ==========
 local ESPon = true
 local ESPcolor = Color3.fromRGB(255, 50, 50)
 local ESPsize = 14
@@ -23,8 +25,13 @@ local ShowFOVCircle = true
 local Fly = false
 local NoClip = false
 local Speed = 1
+local SuperSpeed = false
+local BunnyHop = false
 
-local menuOpen = true
+local HealthBar = false
+local PlayerNames = true
+
+local menuOpen = false
 local gui = nil
 local fovCircle = nil
 local mobileButton = nil
@@ -32,12 +39,206 @@ local scriptLoaded = true
 local currentTab = "PLAYER"
 local updateConn = nil
 local flyConn = nil
+local bunnyHopConn = nil
 local respawning = false
 local dragging = false
 local dragStart = nil
 local startPos = nil
+local lastJumpTime = 0
+local jumpCooldown = 0.05
 
 local CENTER_OFFSET = Vector2.new(0, -57)
+local isDrawingSupported = pcall(function() return Drawing.new("Line") end)
+
+-- ========== BUNNY HOP (УНИВЕРСАЛЬНЫЙ) ==========
+local function ToggleBunnyHop()
+    BunnyHop = not BunnyHop
+    
+    if BunnyHop then
+        bunnyHopConn = RunService.Heartbeat:Connect(function()
+            local char = LocalPlayer.Character
+            if not char then return end
+            local hum = char:FindFirstChild("Humanoid")
+            if not hum then return end
+            local hrp = char:FindFirstChild("HumanoidRootPart")
+            
+            if hum.FloorMaterial ~= Enum.Material.Air then
+                local moving = false
+                
+                if UserInputService:IsKeyDown(Enum.KeyCode.W) or 
+                   UserInputService:IsKeyDown(Enum.KeyCode.A) or 
+                   UserInputService:IsKeyDown(Enum.KeyCode.S) or 
+                   UserInputService:IsKeyDown(Enum.KeyCode.D) then
+                    moving = true
+                end
+                
+                if not moving and hrp then
+                    if math.abs(hrp.Velocity.X) > 0.5 or math.abs(hrp.Velocity.Z) > 0.5 then
+                        moving = true
+                    end
+                end
+                
+                if moving and tick() - lastJumpTime > jumpCooldown then
+                    lastJumpTime = tick()
+                    pcall(function()
+                        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+                        task.wait(0.01)
+                        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+                    end)
+                    pcall(function()
+                        hum.Jump = true
+                    end)
+                end
+            end
+        end)
+    else
+        if bunnyHopConn then
+            bunnyHopConn:Disconnect()
+            bunnyHopConn = nil
+        end
+        lastJumpTime = 0
+    end
+    
+    print("BUNNY HOP: " .. (BunnyHop and "ON" or "OFF"))
+end
+
+-- ========== DASH ==========
+local lastDashTime = 0
+local dashCooldown = 0.5
+
+local function DashForward()
+    local char = LocalPlayer.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    
+    if tick() - lastDashTime < dashCooldown then return end
+    
+    local direction = Camera.CFrame.LookVector
+    local speed = 60
+    
+    local bv = Instance.new("BodyVelocity")
+    bv.MaxForce = Vector3.new(1e9, 0, 1e9)
+    bv.Velocity = direction * speed
+    bv.Parent = hrp
+    
+    lastDashTime = tick()
+    
+    task.wait(0.2)
+    bv:Destroy()
+end
+
+-- ========== DRAWING (ДЛЯ HEALTH BAR) ==========
+local Drawings = {}
+
+local function ClearDrawings()
+    for char, data in pairs(Drawings) do
+        if data.health then
+            for _, h in pairs(data.health) do pcall(function() h:Remove() end) end
+        end
+        Drawings[char] = nil
+    end
+    Drawings = {}
+end
+
+local function CreateDrawingHealth(char)
+    if not char or char == LocalPlayer.Character then return end
+    if not HealthBar then return end
+    if not isDrawingSupported then return end
+    
+    if Drawings[char] and Drawings[char].health then
+        for _, h in pairs(Drawings[char].health) do pcall(function() h:Remove() end) end
+        Drawings[char].health = nil
+    end
+    if not Drawings[char] then Drawings[char] = {} end
+    
+    local bg = Drawing.new("Square")
+    bg.Visible = false
+    bg.Thickness = 1
+    bg.Color = Color3.fromRGB(30, 30, 30)
+    bg.Transparency = 0.8
+    bg.Filled = true
+    
+    local fill = Drawing.new("Square")
+    fill.Visible = false
+    fill.Thickness = 1
+    fill.Color = Color3.fromRGB(0, 255, 0)
+    fill.Transparency = 0.5
+    fill.Filled = true
+    
+    Drawings[char].health = {bg = bg, fill = fill}
+    Drawings[char].char = char
+end
+
+-- ОБНОВЛЕНИЕ HEALTH BAR
+local function UpdateDrawings()
+    if not scriptLoaded then return end
+    
+    if HealthBar and isDrawingSupported then
+        for char, data in pairs(Drawings) do
+            if not char or not char.Parent then
+                if data.health then
+                    for _, h in pairs(data.health) do pcall(function() h:Remove() end) end
+                end
+                Drawings[char] = nil
+                continue
+            end
+            
+            local hum = char:FindFirstChild("Humanoid")
+            if not hum or hum.Health <= 0 then
+                if data.health then
+                    data.health.bg.Visible = false
+                    data.health.fill.Visible = false
+                end
+                continue
+            end
+            
+            if HealthBar and not data.health then
+                CreateDrawingHealth(char)
+                if not data.health then continue end
+            end
+            
+            local head = char:FindFirstChild("Head") or char:FindFirstChild("HumanoidRootPart")
+            if not head then
+                if data.health then
+                    data.health.bg.Visible = false
+                    data.health.fill.Visible = false
+                end
+                continue
+            end
+            
+            local pos, on = Camera:WorldToScreenPoint(head.Position + Vector3.new(0, 2.5, 0))
+            if on then
+                local width = 50
+                local height = 5
+                local x = pos.X - width/2
+                local y = pos.Y - height/2
+                
+                data.health.bg.Position = Vector2.new(x, y)
+                data.health.bg.Size = Vector2.new(width, height)
+                data.health.bg.Visible = true
+                
+                local healthPercent = math.clamp(hum.Health / hum.MaxHealth, 0, 1)
+                data.health.fill.Position = Vector2.new(x, y)
+                data.health.fill.Size = Vector2.new(width * healthPercent, height)
+                data.health.fill.Visible = true
+                
+                if healthPercent > 0.5 then
+                    data.health.fill.Color = Color3.fromRGB(0, 255, 0)
+                elseif healthPercent > 0.25 then
+                    data.health.fill.Color = Color3.fromRGB(255, 255, 0)
+                else
+                    data.health.fill.Color = Color3.fromRGB(255, 0, 0)
+                end
+            else
+                if data.health then
+                    data.health.bg.Visible = false
+                    data.health.fill.Visible = false
+                end
+            end
+        end
+    end
+end
 
 -- ========== ЭКРАН ЗАГРУЗКИ ==========
 local function ShowLoadingScreen()
@@ -162,6 +363,9 @@ local function Unload()
     if mobileButton then mobileButton:Destroy() mobileButton = nil end
     if updateConn then updateConn:Disconnect() end
     if flyConn then flyConn:Disconnect() end
+    if bunnyHopConn then bunnyHopConn:Disconnect() bunnyHopConn = nil end
+    
+    ClearDrawings()
     
     local char = LocalPlayer.Character
     if char then
@@ -169,13 +373,15 @@ local function Unload()
         if hum then
             hum.PlatformStand = false
             hum.Jump = true
+            hum.JumpPower = 50
+            hum.WalkSpeed = 16
         end
     end
     
     for _, p in ipairs(Players:GetPlayers()) do
         if p.Character then
             for _, o in ipairs(p.Character:GetChildren()) do
-                if o:IsA("BoxHandleAdornment") or o:IsA("BillboardGui") then
+                if o:IsA("BoxHandleAdornment") or o:IsA("BillboardGui") or o:IsA("SelectionBox") then
                     o:Destroy()
                 end
             end
@@ -184,7 +390,7 @@ local function Unload()
     for _, c in ipairs(workspace:GetChildren()) do
         if c:IsA("Model") and c:FindFirstChild("Humanoid") then
             for _, o in ipairs(c:GetChildren()) do
-                if o:IsA("BoxHandleAdornment") or o:IsA("BillboardGui") then
+                if o:IsA("BoxHandleAdornment") or o:IsA("BillboardGui") or o:IsA("SelectionBox") then
                     o:Destroy()
                 end
             end
@@ -356,8 +562,20 @@ local function GetClosest()
     return closest
 end
 
+-- ========== ОСНОВНЫЕ ФУНКЦИИ ==========
+
 local function CreateESP(c)
     if not c or not c:FindFirstChild("HumanoidRootPart") or c == LocalPlayer.Character then return end
+    
+    local hum = c:FindFirstChild("Humanoid")
+    if not hum or hum.Health <= 0 then return end
+    
+    for _, o in ipairs(c:GetChildren()) do
+        if o:IsA("BoxHandleAdornment") or o:IsA("BillboardGui") or o:IsA("SelectionBox") then
+            o:Destroy()
+        end
+    end
+    
     local box = Instance.new("BoxHandleAdornment")
     box.Adornee = c
     box.Size = Vector3.new(BoxSize, BoxSize + 1.5, 1)
@@ -372,6 +590,8 @@ local function CreateESP(c)
     tag.Size = UDim2.new(0, 150, 0, 30)
     tag.AlwaysOnTop = true
     tag.Parent = c
+    tag.Name = "NameTag"
+    tag.Enabled = PlayerNames
     
     local label = Instance.new("TextLabel")
     label.Size = UDim2.new(1, 0, 1, 0)
@@ -381,14 +601,22 @@ local function CreateESP(c)
     label.TextSize = ESPsize
     label.Font = Enum.Font.GothamBold
     label.Parent = tag
+    
+    if HealthBar and isDrawingSupported then CreateDrawingHealth(c) end
 end
 
 local function RemoveESP(c)
     if not c then return end
     for _, o in ipairs(c:GetChildren()) do
-        if o:IsA("BoxHandleAdornment") or o:IsA("BillboardGui") then
+        if o:IsA("BoxHandleAdornment") or o:IsA("BillboardGui") or o:IsA("SelectionBox") then
             o:Destroy()
         end
+    end
+    if Drawings[c] then
+        if Drawings[c].health then
+            for _, h in pairs(Drawings[c].health) do pcall(function() h:Remove() end) end
+        end
+        Drawings[c] = nil
     end
 end
 
@@ -440,8 +668,13 @@ local function StartUpdateLoop()
             end
         end
         
-        hum.WalkSpeed = 16 * Speed
-        hum.JumpPower = 50 * Speed
+        local effectiveSpeed = Speed
+        if SuperSpeed then
+            effectiveSpeed = 3
+        end
+        
+        hum.WalkSpeed = 16 * effectiveSpeed
+        hum.JumpPower = 50 * effectiveSpeed
         
         if Fly then
             hum.PlatformStand = true
@@ -450,6 +683,16 @@ local function StartUpdateLoop()
             hum.PlatformStand = false
             hrp.Anchored = false
         end
+    end)
+end
+
+-- БЕСКОНЕЧНОЕ ОБНОВЛЕНИЕ В RenderStepped
+local renderConn = nil
+local function StartRenderLoop()
+    if renderConn then renderConn:Disconnect() end
+    renderConn = RunService.RenderStepped:Connect(function()
+        if not scriptLoaded then return end
+        UpdateDrawings()
     end)
 end
 
@@ -516,10 +759,69 @@ end
 
 local function ToggleNoClip()
     NoClip = not NoClip
+    print("NOCLIP: " .. (NoClip and "ON" or "OFF"))
 end
 
 local function SetSpeed(v)
     Speed = v
+    print("SPEED: " .. v .. "x")
+end
+
+local function ToggleSuperSpeed()
+    SuperSpeed = not SuperSpeed
+    print("SUPER SPEED: " .. (SuperSpeed and "ON (3x MAX)" or "OFF"))
+end
+
+-- Health Bar
+local function ToggleHealthBar()
+    HealthBar = not HealthBar
+    if HealthBar then
+        if not isDrawingSupported then
+            print("Drawing not supported in this executor!")
+            HealthBar = false
+            return
+        end
+        ClearDrawings()
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p.Character and p.Character ~= LocalPlayer.Character then
+                local hum = p.Character:FindFirstChild("Humanoid")
+                if hum and hum.Health > 0 then
+                    CreateDrawingHealth(p.Character)
+                end
+            end
+        end
+        for _, c in ipairs(workspace:GetChildren()) do
+            if c:IsA("Model") and c:FindFirstChild("Humanoid") and c ~= LocalPlayer.Character then
+                local isP = false
+                for _, p in ipairs(Players:GetPlayers()) do
+                    if p.Character == c then isP = true break end
+                end
+                if not isP then
+                    local hum = c:FindFirstChild("Humanoid")
+                    if hum and hum.Health > 0 then
+                        CreateDrawingHealth(c)
+                    end
+                end
+            end
+        end
+    else
+        ClearDrawings()
+    end
+    print("Health Bar: " .. (HealthBar and "ON" or "OFF"))
+end
+
+-- Player Names
+local function TogglePlayerNames()
+    PlayerNames = not PlayerNames
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p.Character then
+            local bg = p.Character:FindFirstChild("NameTag")
+            if bg then
+                bg.Enabled = PlayerNames
+            end
+        end
+    end
+    print("Player Names: " .. (PlayerNames and "ON" or "OFF"))
 end
 
 -- MOBILE BUTTON
@@ -566,7 +868,7 @@ local function CreateMobileButton()
     return btnGui
 end
 
--- ========== НОВОЕ МЕНЮ (АДМИН СТИЛЬ) ==========
+-- ========== МЕНЮ ==========
 local function CreateMenu()
     if gui then gui:Destroy() gui = nil end
     
@@ -577,14 +879,14 @@ local function CreateMenu()
     gui.Enabled = true
     
     local main = Instance.new("Frame")
-    main.Size = UDim2.new(0, 340, 0, 460)
-    main.Position = UDim2.new(0.5, -170, 0.5, -230)
+    main.Size = UDim2.new(0, 340, 0, 490)
+    main.Position = UDim2.new(0.5, -170, 0.5, -245)
     main.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
     main.BackgroundTransparency = 0.05
     main.BorderSizePixel = 2
     main.BorderColor3 = Color3.fromRGB(255, 50, 50)
     main.Parent = gui
-    main.Visible = true
+    main.Visible = false
     main.Name = "Main"
     
     -- Заголовок
@@ -629,8 +931,8 @@ local function CreateMenu()
     
     -- Контент
     local content = Instance.new("ScrollingFrame")
-    content.Size = UDim2.new(0.95, 0, 0.7, 0)
-    content.Position = UDim2.new(0.025, 0, 0.17, 0)
+    content.Size = UDim2.new(0.95, 0, 0.72, 0)
+    content.Position = UDim2.new(0.025, 0, 0.16, 0)
     content.BackgroundColor3 = Color3.fromRGB(20, 20, 35)
     content.BackgroundTransparency = 0.5
     content.BorderSizePixel = 0
@@ -639,10 +941,10 @@ local function CreateMenu()
     content.Parent = main
     content.Name = "Content"
     
-    -- Кнопка UNLOAD внизу
+    -- Кнопка UNLOAD
     local unload = Instance.new("TextButton")
     unload.Size = UDim2.new(0.8, 0, 0, 26)
-    unload.Position = UDim2.new(0.1, 0, 0.92, 0)
+    unload.Position = UDim2.new(0.1, 0, 0.93, 0)
     unload.BackgroundColor3 = Color3.fromRGB(180, 20, 20)
     unload.BackgroundTransparency = 0.2
     unload.TextColor3 = Color3.fromRGB(255, 200, 200)
@@ -743,7 +1045,7 @@ local function CreateMenu()
         return frame
     end
     
-    local function MakeToggle(parent, label, y, getter, setter)
+    local function MakeToggle(parent, label, y, getter, setter, keybind)
         local btn = Instance.new("TextButton")
         btn.Size = UDim2.new(0.96, 0, 0, 24)
         btn.Position = UDim2.new(0.02, 0, y, 0)
@@ -755,10 +1057,10 @@ local function CreateMenu()
         btn.Parent = parent
         
         local lbl = Instance.new("TextLabel")
-        lbl.Size = UDim2.new(0.6, 0, 1, 0)
+        lbl.Size = UDim2.new(0.55, 0, 1, 0)
         lbl.Position = UDim2.new(0.05, 0, 0, 0)
         lbl.BackgroundTransparency = 1
-        lbl.Text = label
+        lbl.Text = label .. (keybind and " [" .. keybind .. "]" or "")
         lbl.TextColor3 = Color3.fromRGB(220, 220, 230)
         lbl.TextSize = 12
         lbl.Font = Enum.Font.Gotham
@@ -864,6 +1166,23 @@ local function CreateMenu()
         return c
     end
     
+    local function MakeButton(parent, label, y, color, callback)
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(0.96, 0, 0, 24)
+        btn.Position = UDim2.new(0.02, 0, y, 0)
+        btn.BackgroundColor3 = color or Color3.fromRGB(40, 40, 60)
+        btn.BackgroundTransparency = 0.3
+        btn.BorderSizePixel = 1
+        btn.BorderColor3 = Color3.fromRGB(60, 60, 80)
+        btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        btn.TextSize = 12
+        btn.Font = Enum.Font.GothamBold
+        btn.Text = label
+        btn.Parent = parent
+        btn.MouseButton1Click:Connect(callback)
+        return btn
+    end
+    
     -- === ОБНОВЛЕНИЕ КОНТЕНТА ===
     local function UpdateContent(tabName)
         for _, child in ipairs(content:GetChildren()) do
@@ -901,12 +1220,14 @@ local function CreateMenu()
             MakeInfo(content, "Aimbot:", AIMon and "ACTIVE" or "INACTIVE", y)
             y = y + 0.055
             MakeInfo(content, "ESP:", ESPon and "ON" or "OFF", y)
+            y = y + 0.055
+            MakeInfo(content, "Bunny Hop:", BunnyHop and "ON" or "OFF", y)
             
         elseif tabName == "COMBAT" then
             CreateSection(content, "COMBAT SETTINGS", y)
             y = y + 0.07
             
-            MakeToggle(content, "AIMBOT", y, function() return AIMon end, function(v) AIMon = v ToggleFOVCircle(AIMon) end)
+            MakeToggle(content, "AIMBOT", y, function() return AIMon end, function(v) AIMon = v ToggleFOVCircle(AIMon) end, "Z")
             y = y + 0.065
             MakeToggle(content, "WALL CHECK", y, function() return CheckWalls end, function(v) CheckWalls = v end)
             y = y + 0.065
@@ -931,6 +1252,13 @@ local function CreateMenu()
                 end
             end)
             y = y + 0.065
+            
+            MakeToggle(content, "PLAYER NAMES", y, function() return PlayerNames end, function(v) TogglePlayerNames() end)
+            y = y + 0.065
+            
+            MakeToggle(content, "HEALTH BAR", y, function() return HealthBar end, function(v) ToggleHealthBar() end)
+            y = y + 0.065
+            
             MakeSlider(content, "BOX SIZE", y, 1, 10, function() return math.floor(BoxSize) end, function(v)
                 BoxSize = v
                 for _, p in ipairs(Players:GetPlayers()) do
@@ -947,6 +1275,7 @@ local function CreateMenu()
                 end
             end)
             y = y + 0.095
+            
             MakeSlider(content, "TEXT SIZE", y, 8, 24, function() return ESPsize end, function(v)
                 ESPsize = v
                 for _, p in ipairs(Players:GetPlayers()) do
@@ -959,19 +1288,63 @@ local function CreateMenu()
                     end
                 end
             end)
+            y = y + 0.095
+            
+            -- CHANGE COLOR
+            local colorBtn = Instance.new("TextButton")
+            colorBtn.Size = UDim2.new(0.96, 0, 0, 24)
+            colorBtn.Position = UDim2.new(0.02, 0, y, 0)
+            colorBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+            colorBtn.BackgroundTransparency = 0.3
+            colorBtn.BorderSizePixel = 1
+            colorBtn.BorderColor3 = Color3.fromRGB(40, 40, 60)
+            colorBtn.Text = "CHANGE ESP COLOR"
+            colorBtn.TextColor3 = Color3.fromRGB(220, 220, 230)
+            colorBtn.TextSize = 12
+            colorBtn.Font = Enum.Font.GothamBold
+            colorBtn.Parent = content
+            colorBtn.MouseButton1Click:Connect(function()
+                ESPcolor = Color3.new(math.random(), math.random(), math.random())
+                for _, p in ipairs(Players:GetPlayers()) do
+                    if p.Character then
+                        local b = p.Character:FindFirstChild("BoxHandleAdornment")
+                        if b then b.Color3 = ESPcolor end
+                    end
+                end
+                for _, c in ipairs(workspace:GetChildren()) do
+                    if c:IsA("Model") and c:FindFirstChild("Humanoid") then
+                        local b = c:FindFirstChild("BoxHandleAdornment")
+                        if b then b.Color3 = ESPcolor end
+                    end
+                end
+            end)
+            y = y + 0.065
             
         elseif tabName == "FUTURES" then
-            CreateSection(content, "FUTURES", y)
+            CreateSection(content, "MOVEMENT", y)
             y = y + 0.07
             
-            MakeToggle(content, "FLY [F]", y, function() return Fly end, function(v) ToggleFly() end)
+            MakeToggle(content, "FLY", y, function() return Fly end, function(v) ToggleFly() end, "F")
             y = y + 0.065
             MakeToggle(content, "NOCLIP", y, function() return NoClip end, function(v) ToggleNoClip() end)
             y = y + 0.065
-            MakeSlider(content, "SPEED", y, 1, 5, function() return Speed end, function(v) SetSpeed(v) end)
+            MakeToggle(content, "BUNNY HOP", y, function() return BunnyHop end, function(v) ToggleBunnyHop() end, "B")
+            y = y + 0.065
+            MakeSlider(content, "SPEED", y, 1, 3, function() return Speed end, function(v) SetSpeed(v) end)
+            y = y + 0.095
+            MakeToggle(content, "SUPER SPEED", y, function() return SuperSpeed end, function(v) ToggleSuperSpeed() end)
+            y = y + 0.065
+            
+            CreateSection(content, "UTILITY", y)
+            y = y + 0.07
+            
+            MakeButton(content, "DASH (E)", y, Color3.fromRGB(40, 100, 200), function()
+                DashForward()
+                print("DASH!")
+            end)
         end
         
-        -- Добавляем отступ снизу
+        -- Отступ снизу
         local spacer = Instance.new("Frame")
         spacer.Size = UDim2.new(1, 0, 0, 10)
         spacer.Position = UDim2.new(0, 0, y + 0.02, 0)
@@ -1012,7 +1385,10 @@ end
 local function ScanAll()
     for _, p in ipairs(Players:GetPlayers()) do
         if p.Character and p.Character ~= LocalPlayer.Character then
-            CreateESP(p.Character)
+            local hum = p.Character:FindFirstChild("Humanoid")
+            if hum and hum.Health > 0 then
+                CreateESP(p.Character)
+            end
         end
     end
     for _, c in ipairs(workspace:GetChildren()) do
@@ -1021,7 +1397,12 @@ local function ScanAll()
             for _, p in ipairs(Players:GetPlayers()) do
                 if p.Character == c then isP = true break end
             end
-            if not isP then CreateESP(c) end
+            if not isP then
+                local hum = c:FindFirstChild("Humanoid")
+                if hum and hum.Health > 0 then
+                    CreateESP(c)
+                end
+            end
         end
     end
 end
@@ -1045,6 +1426,7 @@ ScanAll()
 task.wait(0.5)
 StartUpdateLoop()
 StartFlyLoop()
+StartRenderLoop()
 
 LocalPlayer.CharacterAdded:Connect(function(char)
     task.wait(0.5)
@@ -1058,7 +1440,10 @@ Players.PlayerAdded:Connect(function(p)
     p.CharacterAdded:Connect(function(c)
         task.wait(0.5)
         if scriptLoaded and ESPon and c ~= LocalPlayer.Character then
-            CreateESP(c)
+            local hum = c:FindFirstChild("Humanoid")
+            if hum and hum.Health > 0 then
+                CreateESP(c)
+            end
         end
     end)
 end)
@@ -1071,7 +1456,10 @@ workspace.ChildAdded:Connect(function(c)
         end
         if not isP and c ~= LocalPlayer.Character then
             task.wait(0.3)
-            CreateESP(c)
+            local hum = c:FindFirstChild("Humanoid")
+            if hum and hum.Health > 0 then
+                CreateESP(c)
+            end
         end
     end
 end)
@@ -1095,6 +1483,21 @@ UserInputService.InputBegan:Connect(function(input, gp)
     if input.KeyCode == Enum.KeyCode.Z then
         AIMon = not AIMon
         ToggleFOVCircle(AIMon and ShowFOVCircle)
+        if gui and gui:FindFirstChild("Main") and gui.Main:FindFirstChild("Content") then
+            local content = gui.Main.Content
+            for _, child in ipairs(content:GetChildren()) do
+                if child:IsA("TextButton") then
+                    local lbl = child:FindFirstChild("TextLabel")
+                    if lbl and lbl.Text:find("AIMBOT") then
+                        local st = child:FindFirstChildOfClass("TextLabel")
+                        if st and st.TextXAlignment == Enum.TextXAlignment.Right then
+                            st.Text = AIMon and "ON" or "OFF"
+                            st.TextColor3 = AIMon and Color3.fromRGB(0, 255, 100) or Color3.fromRGB(255, 80, 80)
+                        end
+                    end
+                end
+            end
+        end
     end
     
     if input.KeyCode == Enum.KeyCode.F then
@@ -1104,11 +1507,34 @@ UserInputService.InputBegan:Connect(function(input, gp)
             for _, child in ipairs(content:GetChildren()) do
                 if child:IsA("TextButton") then
                     local lbl = child:FindFirstChild("TextLabel")
-                    if lbl and lbl.Text == "FLY [F]" then
+                    if lbl and lbl.Text:find("FLY") then
                         local st = child:FindFirstChildOfClass("TextLabel")
                         if st and st.TextXAlignment == Enum.TextXAlignment.Right then
                             st.Text = Fly and "ON" or "OFF"
                             st.TextColor3 = Fly and Color3.fromRGB(0, 255, 100) or Color3.fromRGB(255, 80, 80)
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    if input.KeyCode == Enum.KeyCode.E then
+        DashForward()
+    end
+    
+    if input.KeyCode == Enum.KeyCode.B then
+        ToggleBunnyHop()
+        if gui and gui:FindFirstChild("Main") and gui.Main:FindFirstChild("Content") then
+            local content = gui.Main.Content
+            for _, child in ipairs(content:GetChildren()) do
+                if child:IsA("TextButton") then
+                    local lbl = child:FindFirstChild("TextLabel")
+                    if lbl and lbl.Text:find("BUNNY HOP") then
+                        local st = child:FindFirstChildOfClass("TextLabel")
+                        if st and st.TextXAlignment == Enum.TextXAlignment.Right then
+                            st.Text = BunnyHop and "ON" or "OFF"
+                            st.TextColor3 = BunnyHop and Color3.fromRGB(0, 255, 100) or Color3.fromRGB(255, 80, 80)
                         end
                     end
                 end
@@ -1122,8 +1548,11 @@ RunService.RenderStepped:Connect(function()
     for _, p in ipairs(Players:GetPlayers()) do
         local c = p.Character
         if c and c ~= LocalPlayer.Character and c:FindFirstChild("HumanoidRootPart") then
-            if not c:FindFirstChild("BoxHandleAdornment") then
-                CreateESP(c)
+            local hum = c:FindFirstChild("Humanoid")
+            if hum and hum.Health > 0 then
+                if not c:FindFirstChild("BoxHandleAdornment") then
+                    CreateESP(c)
+                end
             end
         end
     end
@@ -1133,8 +1562,13 @@ RunService.RenderStepped:Connect(function()
             for _, p in ipairs(Players:GetPlayers()) do
                 if p.Character == c then isP = true break end
             end
-            if not isP and c:FindFirstChild("HumanoidRootPart") and not c:FindFirstChild("BoxHandleAdornment") then
-                CreateESP(c)
+            if not isP and c:FindFirstChild("HumanoidRootPart") then
+                local hum = c:FindFirstChild("Humanoid")
+                if hum and hum.Health > 0 then
+                    if not c:FindFirstChild("BoxHandleAdornment") then
+                        CreateESP(c)
+                    end
+                end
             end
         end
     end
@@ -1155,4 +1589,10 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
-print("ALL IN ONE loaded. X = Menu, Z = AIM, F = FLY")
+print("ALL IN ONE loaded. X = Menu, Z = AIM, F = FLY, E = DASH, B = BunnyHop")
+print("Drawing supported: " .. tostring(isDrawingSupported))
+if isDrawingSupported then
+    print("Health Bar will work via Drawing API")
+else
+    print("Health Bar DISABLED - Drawing not supported")
+end
