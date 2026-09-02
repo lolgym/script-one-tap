@@ -1,9 +1,10 @@
--- ALL IN ONE (WORKING)
+-- ALL IN ONE (FINAL FIXED)
 -- X = Menu | Z = AIM | F = FLY
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 local Mouse = LocalPlayer:GetMouse()
@@ -23,20 +24,154 @@ local Fly = false
 local NoClip = false
 local Speed = 1
 
-local menuOpen = false
+local menuOpen = true
 local gui = nil
 local fovCircle = nil
+local mobileButton = nil
 local scriptLoaded = true
 local currentTab = "COMBAT"
 local updateConn = nil
 local flyConn = nil
+local respawning = false
+local dragging = false
+local dragStart = nil
+local startPos = nil
 
+local CENTER_OFFSET = Vector2.new(0, -57)
+
+-- ========== ЭКРАН ЗАГРУЗКИ ==========
+local function ShowLoadingScreen()
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Parent = LocalPlayer.PlayerGui
+    screenGui.Name = "LoadingScreen"
+    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    screenGui.ResetOnSpawn = false
+    screenGui.DisplayOrder = 999
+    
+    local background = Instance.new("Frame")
+    background.Size = UDim2.new(1, 0, 1, 0)
+    background.BackgroundColor3 = Color3.fromRGB(8, 8, 16)
+    background.BackgroundTransparency = 0
+    background.ZIndex = 999
+    background.Parent = screenGui
+    
+    local glow = Instance.new("Frame")
+    glow.Size = UDim2.new(0, 300, 0, 300)
+    glow.Position = UDim2.new(0.5, -150, 0.5, -160)
+    glow.BackgroundColor3 = Color3.fromRGB(255, 30, 30)
+    glow.BackgroundTransparency = 0.85
+    glow.BorderSizePixel = 0
+    glow.ZIndex = 1000
+    glow.Parent = background
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 150)
+    corner.Parent = glow
+    
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(0, 0, 0, 70)
+    title.Position = UDim2.new(0.5, 0, 0.5, -70)
+    title.BackgroundTransparency = 1
+    title.Text = "ALL IN ONE"
+    title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    title.TextSize = 52
+    title.Font = Enum.Font.GothamBold
+    title.TextScaled = false
+    title.ZIndex = 1000
+    title.Parent = background
+    
+    local subtitle = Instance.new("TextLabel")
+    subtitle.Size = UDim2.new(0, 0, 0, 30)
+    subtitle.Position = UDim2.new(0.5, 0, 0.5, 10)
+    subtitle.BackgroundTransparency = 1
+    subtitle.Text = "Loading"
+    subtitle.TextColor3 = Color3.fromRGB(180, 180, 200)
+    subtitle.TextSize = 20
+    subtitle.Font = Enum.Font.Gotham
+    subtitle.TextScaled = false
+    subtitle.ZIndex = 1000
+    subtitle.Parent = background
+    
+    local dotsLabel = Instance.new("TextLabel")
+    dotsLabel.Size = UDim2.new(0, 40, 0, 30)
+    dotsLabel.Position = UDim2.new(0.5, 30, 0.5, 10)
+    dotsLabel.BackgroundTransparency = 1
+    dotsLabel.Text = ""
+    dotsLabel.TextColor3 = Color3.fromRGB(180, 180, 200)
+    dotsLabel.TextSize = 20
+    dotsLabel.Font = Enum.Font.Gotham
+    dotsLabel.TextScaled = false
+    dotsLabel.TextXAlignment = Enum.TextXAlignment.Left
+    dotsLabel.ZIndex = 1000
+    dotsLabel.Parent = background
+    
+    local barBg = Instance.new("Frame")
+    barBg.Size = UDim2.new(0, 220, 0, 3)
+    barBg.Position = UDim2.new(0.5, -110, 0.5, 45)
+    barBg.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
+    barBg.BorderSizePixel = 0
+    barBg.ZIndex = 1000
+    barBg.Parent = background
+    
+    local bar = Instance.new("Frame")
+    bar.Size = UDim2.new(0, 0, 1, 0)
+    bar.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+    bar.BorderSizePixel = 0
+    bar.ZIndex = 1001
+    bar.Parent = barBg
+    
+    local dotCount = 0
+    local dotConnection = RunService.Heartbeat:Connect(function()
+        if not screenGui or not screenGui.Parent then
+            dotConnection:Disconnect()
+            return
+        end
+        dotCount = (dotCount + 1) % 4
+        dotsLabel.Text = string.rep(".", dotCount)
+    end)
+    
+    local barTween = TweenService:Create(bar, TweenInfo.new(5, Enum.EasingStyle.Linear), {Size = UDim2.new(1, 0, 1, 0)})
+    barTween:Play()
+    
+    task.wait(5)
+    dotConnection:Disconnect()
+    
+    local fadeOut = TweenService:Create(background, TweenInfo.new(0.5, Enum.EasingStyle.Linear), {BackgroundTransparency = 1})
+    local glowFade = TweenService:Create(glow, TweenInfo.new(0.5, Enum.EasingStyle.Linear), {BackgroundTransparency = 1})
+    local titleFade = TweenService:Create(title, TweenInfo.new(0.5, Enum.EasingStyle.Linear), {TextTransparency = 1})
+    local subFade = TweenService:Create(subtitle, TweenInfo.new(0.5, Enum.EasingStyle.Linear), {TextTransparency = 1})
+    local dotsFade = TweenService:Create(dotsLabel, TweenInfo.new(0.5, Enum.EasingStyle.Linear), {TextTransparency = 1})
+    local barFade = TweenService:Create(barBg, TweenInfo.new(0.5, Enum.EasingStyle.Linear), {BackgroundTransparency = 1})
+    
+    fadeOut:Play()
+    glowFade:Play()
+    titleFade:Play()
+    subFade:Play()
+    dotsFade:Play()
+    barFade:Play()
+    
+    task.wait(0.6)
+    screenGui:Destroy()
+    print("Loading complete")
+end
+
+-- UNLOAD
 local function Unload()
     scriptLoaded = false
     if fovCircle then fovCircle:Destroy() fovCircle = nil end
     if gui then gui:Destroy() gui = nil end
+    if mobileButton then mobileButton:Destroy() mobileButton = nil end
     if updateConn then updateConn:Disconnect() end
     if flyConn then flyConn:Disconnect() end
+    
+    local char = LocalPlayer.Character
+    if char then
+        local hum = char:FindFirstChild("Humanoid")
+        if hum then
+            hum.PlatformStand = false
+            hum.Jump = true
+        end
+    end
+    
     for _, p in ipairs(Players:GetPlayers()) do
         if p.Character then
             for _, o in ipairs(p.Character:GetChildren()) do
@@ -58,19 +193,85 @@ local function Unload()
     print("Unloaded")
 end
 
+-- CENTER
+local function GetCenter()
+    local size = Camera.ViewportSize or Vector2.new(1920, 1080)
+    return Vector2.new(size.X/2 + CENTER_OFFSET.X, size.Y/2 + CENTER_OFFSET.Y)
+end
+
+-- FOV CIRCLE
 local function CreateFOVCircle()
     if fovCircle then fovCircle:Destroy() fovCircle = nil end
+    local center = GetCenter()
+    local r = FOV
     local c = Instance.new("ScreenGui")
     c.Parent = LocalPlayer.PlayerGui
     c.ResetOnSpawn = false
     c.Name = "FOVCircle"
     c.Enabled = false
+    
+    local f = Instance.new("Frame")
+    f.Size = UDim2.new(0, r*2, 0, r*2)
+    f.Position = UDim2.new(0, center.X - r, 0, center.Y - r)
+    f.BackgroundTransparency = 1
+    f.Parent = c
+    f.Name = "CircleFrame"
+    
+    for i = 0, 63 do
+        local a = (i/64) * 2 * math.pi
+        local na = ((i+1)/64) * 2 * math.pi
+        local x1, y1 = r*math.cos(a), r*math.sin(a)
+        local x2, y2 = r*math.cos(na), r*math.sin(na)
+        local mx, my = (x1+x2)/2, (y1+y2)/2
+        local len = math.sqrt((x2-x1)^2 + (y2-y1)^2)
+        local rot = math.atan2(y2-y1, x2-x1) * 180 / math.pi
+        
+        local seg = Instance.new("Frame")
+        seg.Size = UDim2.new(0, len, 0, 2)
+        seg.Position = UDim2.new(0.5, mx - len/2, 0.5, my - 1)
+        seg.BackgroundColor3 = Color3.fromRGB(0, 255, 100)
+        seg.BackgroundTransparency = 0.4
+        seg.BorderSizePixel = 0
+        seg.Rotation = rot
+        seg.Parent = f
+    end
+    
+    local dot = Instance.new("Frame")
+    dot.Size = UDim2.new(0, 3, 0, 3)
+    dot.Position = UDim2.new(0.5, -1.5, 0.5, -1.5)
+    dot.BackgroundColor3 = Color3.fromRGB(0, 255, 100)
+    dot.BackgroundTransparency = 0.2
+    dot.BorderSizePixel = 0
+    dot.Parent = f
+    
     fovCircle = c
     return c
 end
 
 local function UpdateFOVCircle()
-    -- Просто заглушка
+    if not fovCircle then return end
+    local f = fovCircle:FindFirstChild("CircleFrame")
+    if not f then return end
+    local center = GetCenter()
+    local r = FOV
+    f.Size = UDim2.new(0, r*2, 0, r*2)
+    f.Position = UDim2.new(0, center.X - r, 0, center.Y - r)
+    local children = f:GetChildren()
+    for i = 0, 63 do
+        local a = (i/64) * 2 * math.pi
+        local na = ((i+1)/64) * 2 * math.pi
+        local x1, y1 = r*math.cos(a), r*math.sin(a)
+        local x2, y2 = r*math.cos(na), r*math.sin(na)
+        local mx, my = (x1+x2)/2, (y1+y2)/2
+        local len = math.sqrt((x2-x1)^2 + (y2-y1)^2)
+        local rot = math.atan2(y2-y1, x2-x1) * 180 / math.pi
+        local seg = children[i+1]
+        if seg and seg:IsA("Frame") then
+            seg.Size = UDim2.new(0, len, 0, 2)
+            seg.Position = UDim2.new(0.5, mx - len/2, 0.5, my - 1)
+            seg.Rotation = rot
+        end
+    end
 end
 
 local function ToggleFOVCircle(show)
@@ -79,6 +280,7 @@ local function ToggleFOVCircle(show)
     end
 end
 
+-- NPC
 local function IsNPC(c)
     if not c then return false end
     for _, p in ipairs(Players:GetPlayers()) do
@@ -190,7 +392,7 @@ local function RemoveESP(c)
     end
 end
 
--- ========== FLY ==========
+-- FLY
 local function StartFlyLoop()
     if flyConn then flyConn:Disconnect() end
     flyConn = RunService.Heartbeat:Connect(function()
@@ -246,26 +448,69 @@ local function StartUpdateLoop()
             hrp.Anchored = false
         else
             hum.PlatformStand = false
+            hrp.Anchored = false
         end
     end)
 end
 
+-- RESPAWN
+local function ForceRespawn()
+    if respawning then return end
+    respawning = true
+    
+    local char = LocalPlayer.Character
+    if char then
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        local pos = hrp and hrp.Position or Vector3.new(0, 10, 0)
+        
+        local hum = char:FindFirstChild("Humanoid")
+        if hum then
+            hum.Health = 0
+        end
+        
+        task.wait(0.5)
+        
+        local newChar = LocalPlayer.Character
+        if newChar then
+            local newHrp = newChar:FindFirstChild("HumanoidRootPart")
+            if newHrp then
+                newHrp.CFrame = CFrame.new(pos)
+            end
+            local newHum = newChar:FindFirstChild("Humanoid")
+            if newHum then
+                newHum.WalkSpeed = 16 * Speed
+                newHum.JumpPower = 50 * Speed
+                newHum.Jump = true
+                newHum.PlatformStand = false
+            end
+        end
+    end
+    
+    respawning = false
+end
+
 local function ToggleFly()
     Fly = not Fly
+    local char = LocalPlayer.Character
+    local hum = char and char:FindFirstChild("Humanoid")
+    
     if Fly then
         StartFlyLoop()
-        local char = LocalPlayer.Character
-        if char then
-            local hum = char:FindFirstChild("Humanoid")
-            if hum then hum.PlatformStand = true end
+        if hum then 
+            hum.PlatformStand = true
+            hum.Jump = true
         end
+        print("FLY ON")
     else
         if flyConn then flyConn:Disconnect() flyConn = nil end
-        local char = LocalPlayer.Character
-        if char then
-            local hum = char:FindFirstChild("Humanoid")
-            if hum then hum.PlatformStand = false end
+        if hum then 
+            hum.PlatformStand = false
+            hum.WalkSpeed = 16 * Speed
+            hum.JumpPower = 50 * Speed
+            hum.Jump = true
         end
+        print("FLY OFF - Respawn...")
+        ForceRespawn()
     end
 end
 
@@ -277,8 +522,9 @@ local function SetSpeed(v)
     Speed = v
 end
 
--- ========== MOBILE BUTTON ==========
+-- MOBILE BUTTON
 local function CreateMobileButton()
+    if mobileButton then mobileButton:Destroy() mobileButton = nil end
     local btnGui = Instance.new("ScreenGui")
     btnGui.Parent = LocalPlayer.PlayerGui
     btnGui.ResetOnSpawn = false
@@ -309,16 +555,19 @@ local function CreateMobileButton()
         end
     end)
     
+    mobileButton = btnGui
     return btnGui
 end
 
--- ========== MENU ==========
+-- ========== МЕНЮ С ПЕРЕТАСКИВАНИЕМ (ФИКС) ==========
 local function CreateMenu()
     if gui then gui:Destroy() gui = nil end
     
     gui = Instance.new("ScreenGui")
     gui.Parent = LocalPlayer.PlayerGui
     gui.ResetOnSpawn = false
+    gui.Name = "MainMenu"
+    gui.Enabled = true
     
     local main = Instance.new("Frame")
     main.Size = UDim2.new(0, 300, 0, 380)
@@ -328,26 +577,30 @@ local function CreateMenu()
     main.BorderSizePixel = 1
     main.BorderColor3 = Color3.fromRGB(255, 40, 40)
     main.Parent = gui
-    main.Visible = false
+    main.Visible = true  -- ПОКАЗЫВАЕМ СРАЗУ
     main.Name = "Main"
     
+    -- Header
     local h = Instance.new("Frame")
     h.Size = UDim2.new(1, 0, 0, 30)
     h.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
     h.BorderSizePixel = 0
     h.Parent = main
+    h.Name = "Header"
     
+    -- Заголовок
     local title = Instance.new("TextLabel")
     title.Size = UDim2.new(0.7, 0, 1, 0)
     title.Position = UDim2.new(0.05, 0, 0, 0)
     title.BackgroundTransparency = 1
-    title.Text = "✦ ALL IN ONE"
+    title.Text = "ALL IN ONE"
     title.TextColor3 = Color3.fromRGB(255, 255, 255)
     title.TextSize = 16
     title.Font = Enum.Font.GothamBold
     title.TextXAlignment = Enum.TextXAlignment.Left
     title.Parent = h
     
+    -- Кнопка закрытия
     local close = Instance.new("TextButton")
     close.Size = UDim2.new(0, 24, 0, 24)
     close.Position = UDim2.new(0.92, 0, 0.03, 0)
@@ -362,6 +615,35 @@ local function CreateMenu()
         main.Visible = false
     end)
     
+    -- === ПЕРЕТАСКИВАНИЕ МЕНЮ (ИСПРАВЛЕНО) ===
+    h.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = input.Position
+            startPos = main.Position
+        end
+    end)
+    
+    h.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+        end
+    end)
+    
+    UserInputService.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement and dragging then
+            local delta = input.Position - dragStart
+            local newPos = UDim2.new(
+                startPos.X.Scale,
+                startPos.X.Offset + delta.X,
+                startPos.Y.Scale,
+                startPos.Y.Offset + delta.Y
+            )
+            main.Position = newPos
+        end
+    end)
+    
+    -- Tabs
     local tb = Instance.new("Frame")
     tb.Size = UDim2.new(1, 0, 0, 26)
     tb.Position = UDim2.new(0, 0, 0, 30)
@@ -531,7 +813,7 @@ local function CreateMenu()
             MakeToggle(content, "AIMBOT", 0, function() return AIMon end, function(v) AIMon = v ToggleFOVCircle(AIMon) end)
             MakeToggle(content, "WALL CHECK", 0.08, function() return CheckWalls end, function(v) CheckWalls = v end)
             MakeToggle(content, "FOV CIRCLE", 0.16, function() return ShowFOVCircle end, function(v) ShowFOVCircle = v ToggleFOVCircle(AIMon and ShowFOVCircle) end)
-            MakeSlider(content, "FOV", 0.26, 50, 500, function() return FOV end, function(v) FOV = v end)
+            MakeSlider(content, "FOV", 0.26, 50, 500, function() return FOV end, function(v) FOV = v UpdateFOVCircle() end)
             MakeSlider(content, "SMOOTHNESS", 0.38, 1, 100, function() return math.floor(Smoothness * 100) end, function(v) Smoothness = v/100 end)
         elseif tabName == "VISUALS" then
             MakeToggle(content, "ESP", 0, function() return ESPon end, function(v)
@@ -643,14 +925,16 @@ local function ScanAll()
     end
 end
 
--- INIT
+-- ========== ЗАПУСК ==========
+
+ShowLoadingScreen()
 CreateMenu()
 CreateFOVCircle()
 ToggleFOVCircle(false)
 CreateMobileButton()
 ScanAll()
 
-task.wait(1)
+task.wait(0.5)
 StartUpdateLoop()
 StartFlyLoop()
 
