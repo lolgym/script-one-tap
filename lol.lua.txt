@@ -1,4 +1,4 @@
--- ALL IN ONE (FINAL)
+-- ALL IN ONE (ADMIN STYLE)
 -- X = Menu | Z = AIM | F = FLY
 
 local Players = game:GetService("Players")
@@ -29,7 +29,7 @@ local gui = nil
 local fovCircle = nil
 local mobileButton = nil
 local scriptLoaded = true
-local currentTab = "COMBAT"
+local currentTab = "PLAYER"
 local updateConn = nil
 local flyConn = nil
 local respawning = false
@@ -522,14 +522,11 @@ local function SetSpeed(v)
     Speed = v
 end
 
--- MOBILE BUTTON (ТОЛЬКО ДЛЯ ТЕЛЕФОНОВ)
+-- MOBILE BUTTON
 local function CreateMobileButton()
-    -- Если есть мышь или клавиатура — это ПК, кнопка не нужна
     if UserInputService.MouseEnabled or UserInputService.KeyboardEnabled then
         return nil
     end
-    
-    -- Если нет тача — тоже не нужна
     if not UserInputService.TouchEnabled then
         return nil
     end
@@ -569,7 +566,7 @@ local function CreateMobileButton()
     return btnGui
 end
 
--- ========== МЕНЮ С ПЕРЕТАСКИВАНИЕМ (ФИКС) ==========
+-- ========== НОВОЕ МЕНЮ (АДМИН СТИЛЬ) ==========
 local function CreateMenu()
     if gui then gui:Destroy() gui = nil end
     
@@ -580,53 +577,83 @@ local function CreateMenu()
     gui.Enabled = true
     
     local main = Instance.new("Frame")
-    main.Size = UDim2.new(0, 300, 0, 380)
-    main.Position = UDim2.new(0.5, -150, 0.5, -190)
-    main.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
-    main.BackgroundTransparency = 0.1
-    main.BorderSizePixel = 1
-    main.BorderColor3 = Color3.fromRGB(255, 40, 40)
+    main.Size = UDim2.new(0, 340, 0, 460)
+    main.Position = UDim2.new(0.5, -170, 0.5, -230)
+    main.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
+    main.BackgroundTransparency = 0.05
+    main.BorderSizePixel = 2
+    main.BorderColor3 = Color3.fromRGB(255, 50, 50)
     main.Parent = gui
     main.Visible = true
     main.Name = "Main"
     
-    -- Header
-    local h = Instance.new("Frame")
-    h.Size = UDim2.new(1, 0, 0, 30)
-    h.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
-    h.BorderSizePixel = 0
-    h.Parent = main
-    h.Name = "Header"
-    
     -- Заголовок
+    local header = Instance.new("Frame")
+    header.Size = UDim2.new(1, 0, 0, 35)
+    header.BackgroundColor3 = Color3.fromRGB(25, 25, 40)
+    header.BorderSizePixel = 0
+    header.Parent = main
+    
     local title = Instance.new("TextLabel")
     title.Size = UDim2.new(0.7, 0, 1, 0)
     title.Position = UDim2.new(0.05, 0, 0, 0)
     title.BackgroundTransparency = 1
     title.Text = "ALL IN ONE"
     title.TextColor3 = Color3.fromRGB(255, 255, 255)
-    title.TextSize = 16
+    title.TextSize = 18
     title.Font = Enum.Font.GothamBold
     title.TextXAlignment = Enum.TextXAlignment.Left
-    title.Parent = h
+    title.Parent = header
     
-    -- Кнопка закрытия
     local close = Instance.new("TextButton")
-    close.Size = UDim2.new(0, 24, 0, 24)
+    close.Size = UDim2.new(0, 28, 0, 28)
     close.Position = UDim2.new(0.92, 0, 0.03, 0)
     close.BackgroundTransparency = 1
     close.Text = "✕"
-    close.TextColor3 = Color3.fromRGB(200, 200, 200)
-    close.TextSize = 14
+    close.TextColor3 = Color3.fromRGB(255, 200, 200)
+    close.TextSize = 16
     close.Font = Enum.Font.GothamBold
-    close.Parent = h
+    close.Parent = header
     close.MouseButton1Click:Connect(function()
         menuOpen = false
         main.Visible = false
     end)
     
-    -- === ПЕРЕТАСКИВАНИЕ МЕНЮ (ИСПРАВЛЕНО) ===
-    h.InputBegan:Connect(function(input)
+    -- Вкладки
+    local tabBar = Instance.new("Frame")
+    tabBar.Size = UDim2.new(1, 0, 0, 28)
+    tabBar.Position = UDim2.new(0, 0, 0, 35)
+    tabBar.BackgroundColor3 = Color3.fromRGB(10, 10, 20)
+    tabBar.BorderSizePixel = 0
+    tabBar.Parent = main
+    
+    -- Контент
+    local content = Instance.new("ScrollingFrame")
+    content.Size = UDim2.new(0.95, 0, 0.7, 0)
+    content.Position = UDim2.new(0.025, 0, 0.17, 0)
+    content.BackgroundColor3 = Color3.fromRGB(20, 20, 35)
+    content.BackgroundTransparency = 0.5
+    content.BorderSizePixel = 0
+    content.ScrollBarThickness = 4
+    content.ScrollBarImageColor3 = Color3.fromRGB(255, 50, 50)
+    content.Parent = main
+    content.Name = "Content"
+    
+    -- Кнопка UNLOAD внизу
+    local unload = Instance.new("TextButton")
+    unload.Size = UDim2.new(0.8, 0, 0, 26)
+    unload.Position = UDim2.new(0.1, 0, 0.92, 0)
+    unload.BackgroundColor3 = Color3.fromRGB(180, 20, 20)
+    unload.BackgroundTransparency = 0.2
+    unload.TextColor3 = Color3.fromRGB(255, 200, 200)
+    unload.TextSize = 12
+    unload.Font = Enum.Font.GothamBold
+    unload.Text = "UNLOAD"
+    unload.Parent = main
+    unload.MouseButton1Click:Connect(Unload)
+    
+    -- Перетаскивание
+    header.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
             dragging = true
             dragStart = input.Position
@@ -634,7 +661,7 @@ local function CreateMenu()
         end
     end)
     
-    h.InputEnded:Connect(function(input)
+    header.InputEnded:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
             dragging = false
         end
@@ -643,49 +670,87 @@ local function CreateMenu()
     UserInputService.InputChanged:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseMovement and dragging then
             local delta = input.Position - dragStart
-            local newPos = UDim2.new(
+            main.Position = UDim2.new(
                 startPos.X.Scale,
                 startPos.X.Offset + delta.X,
                 startPos.Y.Scale,
                 startPos.Y.Offset + delta.Y
             )
-            main.Position = newPos
         end
     end)
     
-    -- Tabs
-    local tb = Instance.new("Frame")
-    tb.Size = UDim2.new(1, 0, 0, 26)
-    tb.Position = UDim2.new(0, 0, 0, 30)
-    tb.BackgroundColor3 = Color3.fromRGB(15, 15, 22)
-    tb.BorderSizePixel = 0
-    tb.Parent = main
+    -- === ФУНКЦИИ ДЛЯ СОЗДАНИЯ ЭЛЕМЕНТОВ ===
+    local function CreateSection(parent, label, y)
+        local section = Instance.new("Frame")
+        section.Size = UDim2.new(1, 0, 0, 26)
+        section.Position = UDim2.new(0, 0, y, 0)
+        section.BackgroundColor3 = Color3.fromRGB(30, 30, 50)
+        section.BackgroundTransparency = 0.3
+        section.BorderSizePixel = 0
+        section.Parent = parent
+        
+        local lbl = Instance.new("TextLabel")
+        lbl.Size = UDim2.new(1, 0, 1, 0)
+        lbl.Position = UDim2.new(0.05, 0, 0, 0)
+        lbl.BackgroundTransparency = 1
+        lbl.Text = label
+        lbl.TextColor3 = Color3.fromRGB(255, 200, 200)
+        lbl.TextSize = 12
+        lbl.Font = Enum.Font.GothamBold
+        lbl.TextXAlignment = Enum.TextXAlignment.Left
+        lbl.Parent = section
+        
+        local line = Instance.new("Frame")
+        line.Size = UDim2.new(0.85, 0, 0, 1)
+        line.Position = UDim2.new(0.1, 0, 0.5, 0)
+        line.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+        line.BackgroundTransparency = 0.5
+        line.BorderSizePixel = 0
+        line.Parent = section
+        
+        return section
+    end
     
-    local content = Instance.new("Frame")
-    content.Size = UDim2.new(0.9, 0, 0.6, 0)
-    content.Position = UDim2.new(0.05, 0, 0.25, 0)
-    content.BackgroundColor3 = Color3.fromRGB(25, 25, 38)
-    content.Parent = main
-    content.Name = "Content"
-    
-    local unload = Instance.new("TextButton")
-    unload.Size = UDim2.new(0.8, 0, 0, 24)
-    unload.Position = UDim2.new(0.1, 0, 0.91, 0)
-    unload.BackgroundColor3 = Color3.fromRGB(160, 20, 20)
-    unload.BackgroundTransparency = 0.3
-    unload.TextColor3 = Color3.fromRGB(255, 200, 200)
-    unload.TextSize = 12
-    unload.Font = Enum.Font.GothamBold
-    unload.Text = "UNLOAD"
-    unload.Parent = main
-    unload.MouseButton1Click:Connect(Unload)
+    local function MakeInfo(parent, label, value, y)
+        local frame = Instance.new("Frame")
+        frame.Size = UDim2.new(1, 0, 0, 22)
+        frame.Position = UDim2.new(0, 0, y, 0)
+        frame.BackgroundTransparency = 1
+        frame.Parent = parent
+        
+        local lbl = Instance.new("TextLabel")
+        lbl.Size = UDim2.new(0.4, 0, 1, 0)
+        lbl.Position = UDim2.new(0.02, 0, 0, 0)
+        lbl.BackgroundTransparency = 1
+        lbl.Text = label
+        lbl.TextColor3 = Color3.fromRGB(180, 180, 200)
+        lbl.TextSize = 11
+        lbl.Font = Enum.Font.Gotham
+        lbl.TextXAlignment = Enum.TextXAlignment.Left
+        lbl.Parent = frame
+        
+        local val = Instance.new("TextLabel")
+        val.Size = UDim2.new(0.55, 0, 1, 0)
+        val.Position = UDim2.new(0.43, 0, 0, 0)
+        val.BackgroundTransparency = 1
+        val.Text = value
+        val.TextColor3 = Color3.fromRGB(255, 255, 255)
+        val.TextSize = 11
+        val.Font = Enum.Font.GothamBold
+        val.TextXAlignment = Enum.TextXAlignment.Right
+        val.Parent = frame
+        
+        return frame
+    end
     
     local function MakeToggle(parent, label, y, getter, setter)
         local btn = Instance.new("TextButton")
-        btn.Size = UDim2.new(0.95, 0, 0, 24)
-        btn.Position = UDim2.new(0.025, 0, y, 0)
+        btn.Size = UDim2.new(0.96, 0, 0, 24)
+        btn.Position = UDim2.new(0.02, 0, y, 0)
         btn.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
-        btn.BorderSizePixel = 0
+        btn.BackgroundTransparency = 0.3
+        btn.BorderSizePixel = 1
+        btn.BorderColor3 = Color3.fromRGB(40, 40, 60)
         btn.Text = ""
         btn.Parent = parent
         
@@ -721,13 +786,13 @@ local function CreateMenu()
     
     local function MakeSlider(parent, label, y, min, max, getter, setter)
         local c = Instance.new("Frame")
-        c.Size = UDim2.new(0.95, 0, 0, 36)
-        c.Position = UDim2.new(0.025, 0, y, 0)
+        c.Size = UDim2.new(0.96, 0, 0, 38)
+        c.Position = UDim2.new(0.02, 0, y, 0)
         c.BackgroundTransparency = 1
         c.Parent = parent
         
         local lbl = Instance.new("TextLabel")
-        lbl.Size = UDim2.new(0.5, 0, 0, 14)
+        lbl.Size = UDim2.new(0.5, 0, 0, 16)
         lbl.Position = UDim2.new(0, 0, 0, 0)
         lbl.BackgroundTransparency = 1
         lbl.Text = label
@@ -738,7 +803,7 @@ local function CreateMenu()
         lbl.Parent = c
         
         local valLbl = Instance.new("TextLabel")
-        valLbl.Size = UDim2.new(0.3, 0, 0, 14)
+        valLbl.Size = UDim2.new(0.3, 0, 0, 16)
         valLbl.Position = UDim2.new(0.65, 0, 0, 0)
         valLbl.BackgroundTransparency = 1
         valLbl.TextColor3 = Color3.fromRGB(0, 255, 200)
@@ -749,9 +814,9 @@ local function CreateMenu()
         valLbl.Parent = c
         
         local barBg = Instance.new("Frame")
-        barBg.Size = UDim2.new(0.7, 0, 0, 2)
+        barBg.Size = UDim2.new(0.7, 0, 0, 3)
         barBg.Position = UDim2.new(0, 0, 0.7, 0)
-        barBg.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+        barBg.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
         barBg.BorderSizePixel = 0
         barBg.Parent = c
         
@@ -762,14 +827,14 @@ local function CreateMenu()
         bar.Parent = barBg
         
         local minus = Instance.new("TextButton")
-        minus.Size = UDim2.new(0, 16, 0, 16)
+        minus.Size = UDim2.new(0, 18, 0, 18)
         minus.Position = UDim2.new(0.73, 0, 0.5, 0)
-        minus.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+        minus.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
         minus.BackgroundTransparency = 0.3
-        minus.TextColor3 = Color3.fromRGB(200, 200, 200)
-        minus.TextSize = 12
-        minus.Font = Enum.Font.GothamBold
         minus.Text = "−"
+        minus.TextColor3 = Color3.fromRGB(200, 200, 200)
+        minus.TextSize = 14
+        minus.Font = Enum.Font.GothamBold
         minus.Parent = c
         minus.MouseButton1Click:Connect(function()
             local step = (max - min) > 50 and 5 or 1
@@ -780,14 +845,14 @@ local function CreateMenu()
         end)
         
         local plus = Instance.new("TextButton")
-        plus.Size = UDim2.new(0, 16, 0, 16)
+        plus.Size = UDim2.new(0, 18, 0, 18)
         plus.Position = UDim2.new(0.84, 0, 0.5, 0)
-        plus.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+        plus.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
         plus.BackgroundTransparency = 0.3
-        plus.TextColor3 = Color3.fromRGB(200, 200, 200)
-        plus.TextSize = 12
-        plus.Font = Enum.Font.GothamBold
         plus.Text = "+"
+        plus.TextColor3 = Color3.fromRGB(200, 200, 200)
+        plus.TextSize = 14
+        plus.Font = Enum.Font.GothamBold
         plus.Parent = c
         plus.MouseButton1Click:Connect(function()
             local step = (max - min) > 50 and 5 or 1
@@ -799,34 +864,63 @@ local function CreateMenu()
         return c
     end
     
-    local function MakeColorBtn(parent, label, y, cb)
-        local btn = Instance.new("TextButton")
-        btn.Size = UDim2.new(0.95, 0, 0, 24)
-        btn.Position = UDim2.new(0.025, 0, y, 0)
-        btn.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
-        btn.BorderSizePixel = 0
-        btn.TextColor3 = Color3.fromRGB(220, 220, 230)
-        btn.TextSize = 12
-        btn.Font = Enum.Font.Gotham
-        btn.Text = label
-        btn.Parent = parent
-        btn.MouseButton1Click:Connect(cb)
-        return btn
-    end
-    
+    -- === ОБНОВЛЕНИЕ КОНТЕНТА ===
     local function UpdateContent(tabName)
         for _, child in ipairs(content:GetChildren()) do
             child:Destroy()
         end
         
-        if tabName == "COMBAT" then
-            MakeToggle(content, "AIMBOT", 0, function() return AIMon end, function(v) AIMon = v ToggleFOVCircle(AIMon) end)
-            MakeToggle(content, "WALL CHECK", 0.08, function() return CheckWalls end, function(v) CheckWalls = v end)
-            MakeToggle(content, "FOV CIRCLE", 0.16, function() return ShowFOVCircle end, function(v) ShowFOVCircle = v ToggleFOVCircle(AIMon and ShowFOVCircle) end)
-            MakeSlider(content, "FOV", 0.26, 50, 500, function() return FOV end, function(v) FOV = v UpdateFOVCircle() end)
-            MakeSlider(content, "SMOOTHNESS", 0.38, 1, 100, function() return math.floor(Smoothness * 100) end, function(v) Smoothness = v/100 end)
+        local y = 0
+        
+        if tabName == "PLAYER" then
+            CreateSection(content, "PLAYER DETAILS", y)
+            y = y + 0.07
+            
+            local char = LocalPlayer.Character
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            local pos = hrp and hrp.Position or Vector3.new(0,0,0)
+            
+            MakeInfo(content, "Player Name:", LocalPlayer.Name, y)
+            y = y + 0.055
+            MakeInfo(content, "Position:", string.format("%.0f, %.0f, %.0f", pos.X, pos.Y, pos.Z), y)
+            y = y + 0.055
+            MakeInfo(content, "Health:", char and char:FindFirstChild("Humanoid") and math.floor(char.Humanoid.Health) or "N/A", y)
+            y = y + 0.055
+            MakeInfo(content, "Speed:", Speed .. "x", y)
+            y = y + 0.055
+            MakeInfo(content, "Players Online:", #Players:GetPlayers(), y)
+            y = y + 0.055
+            
+            CreateSection(content, "DUTY STATUS", y)
+            y = y + 0.07
+            
+            MakeInfo(content, "Status:", Fly and "FLYING" or "GROUND", y)
+            y = y + 0.055
+            MakeInfo(content, "NoClip:", NoClip and "ENABLED" or "DISABLED", y)
+            y = y + 0.055
+            MakeInfo(content, "Aimbot:", AIMon and "ACTIVE" or "INACTIVE", y)
+            y = y + 0.055
+            MakeInfo(content, "ESP:", ESPon and "ON" or "OFF", y)
+            
+        elseif tabName == "COMBAT" then
+            CreateSection(content, "COMBAT SETTINGS", y)
+            y = y + 0.07
+            
+            MakeToggle(content, "AIMBOT", y, function() return AIMon end, function(v) AIMon = v ToggleFOVCircle(AIMon) end)
+            y = y + 0.065
+            MakeToggle(content, "WALL CHECK", y, function() return CheckWalls end, function(v) CheckWalls = v end)
+            y = y + 0.065
+            MakeToggle(content, "FOV CIRCLE", y, function() return ShowFOVCircle end, function(v) ShowFOVCircle = v ToggleFOVCircle(AIMon and ShowFOVCircle) end)
+            y = y + 0.065
+            MakeSlider(content, "FOV", y, 50, 500, function() return FOV end, function(v) FOV = v UpdateFOVCircle() end)
+            y = y + 0.095
+            MakeSlider(content, "SMOOTHNESS", y, 1, 100, function() return math.floor(Smoothness * 100) end, function(v) Smoothness = v/100 end)
+            
         elseif tabName == "VISUALS" then
-            MakeToggle(content, "ESP", 0, function() return ESPon end, function(v)
+            CreateSection(content, "VISUAL SETTINGS", y)
+            y = y + 0.07
+            
+            MakeToggle(content, "ESP", y, function() return ESPon end, function(v)
                 ESPon = v
                 if not v then
                     for _, p in ipairs(Players:GetPlayers()) do if p.Character then RemoveESP(p.Character) end end
@@ -836,22 +930,8 @@ local function CreateMenu()
                     for _, c in ipairs(workspace:GetChildren()) do if c:IsA("Model") and c:FindFirstChild("Humanoid") and c ~= LocalPlayer.Character then CreateESP(c) end end
                 end
             end)
-            MakeColorBtn(content, "CHANGE COLOR", 0.08, function()
-                ESPcolor = Color3.new(math.random(), math.random(), math.random())
-                for _, p in ipairs(Players:GetPlayers()) do
-                    if p.Character then
-                        local b = p.Character:FindFirstChild("BoxHandleAdornment")
-                        if b then b.Color3 = ESPcolor end
-                    end
-                end
-                for _, c in ipairs(workspace:GetChildren()) do
-                    if c:IsA("Model") and c:FindFirstChild("Humanoid") then
-                        local b = c:FindFirstChild("BoxHandleAdornment")
-                        if b then b.Color3 = ESPcolor end
-                    end
-                end
-            end)
-            MakeSlider(content, "BOX SIZE", 0.18, 1, 10, function() return math.floor(BoxSize) end, function(v)
+            y = y + 0.065
+            MakeSlider(content, "BOX SIZE", y, 1, 10, function() return math.floor(BoxSize) end, function(v)
                 BoxSize = v
                 for _, p in ipairs(Players:GetPlayers()) do
                     if p.Character then
@@ -866,7 +946,8 @@ local function CreateMenu()
                     end
                 end
             end)
-            MakeSlider(content, "TEXT SIZE", 0.30, 8, 24, function() return ESPsize end, function(v)
+            y = y + 0.095
+            MakeSlider(content, "TEXT SIZE", y, 8, 24, function() return ESPsize end, function(v)
                 ESPsize = v
                 for _, p in ipairs(Players:GetPlayers()) do
                     if p.Character then
@@ -878,26 +959,40 @@ local function CreateMenu()
                     end
                 end
             end)
+            
         elseif tabName == "FUTURES" then
-            MakeToggle(content, "FLY [F]", 0, function() return Fly end, function(v) ToggleFly() end)
-            MakeToggle(content, "NOCLIP", 0.08, function() return NoClip end, function(v) ToggleNoClip() end)
-            MakeSlider(content, "SPEED", 0.18, 1, 5, function() return Speed end, function(v) SetSpeed(v) end)
+            CreateSection(content, "FUTURES", y)
+            y = y + 0.07
+            
+            MakeToggle(content, "FLY [F]", y, function() return Fly end, function(v) ToggleFly() end)
+            y = y + 0.065
+            MakeToggle(content, "NOCLIP", y, function() return NoClip end, function(v) ToggleNoClip() end)
+            y = y + 0.065
+            MakeSlider(content, "SPEED", y, 1, 5, function() return Speed end, function(v) SetSpeed(v) end)
         end
+        
+        -- Добавляем отступ снизу
+        local spacer = Instance.new("Frame")
+        spacer.Size = UDim2.new(1, 0, 0, 10)
+        spacer.Position = UDim2.new(0, 0, y + 0.02, 0)
+        spacer.BackgroundTransparency = 1
+        spacer.Parent = content
     end
     
-    local tabs = {"COMBAT", "VISUALS", "FUTURES"}
+    -- Вкладки
+    local tabs = {"PLAYER", "COMBAT", "VISUALS", "FUTURES"}
     local tabBtns = {}
     
     for i, name in ipairs(tabs) do
         local btn = Instance.new("TextButton")
-        btn.Size = UDim2.new(0.3, 0, 1, 0)
-        btn.Position = UDim2.new((i-1) * 0.333, 0, 0, 0)
+        btn.Size = UDim2.new(0.25, 0, 1, 0)
+        btn.Position = UDim2.new((i-1) * 0.25, 0, 0, 0)
         btn.BackgroundTransparency = 1
         btn.Text = name
-        btn.TextColor3 = Color3.fromRGB(150, 150, 170)
-        btn.TextSize = 11
+        btn.TextColor3 = (i == 1) and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(150, 150, 170)
+        btn.TextSize = 10
         btn.Font = Enum.Font.GothamBold
-        btn.Parent = tb
+        btn.Parent = tabBar
         btn.Name = name
         tabBtns[name] = btn
         
@@ -910,11 +1005,7 @@ local function CreateMenu()
         end)
     end
     
-    if tabBtns["COMBAT"] then
-        tabBtns["COMBAT"].TextColor3 = Color3.fromRGB(255, 255, 255)
-    end
-    
-    UpdateContent("COMBAT")
+    UpdateContent("PLAYER")
     return gui
 end
 
@@ -942,7 +1033,6 @@ CreateMenu()
 CreateFOVCircle()
 ToggleFOVCircle(false)
 
--- Создаём кнопку только если это телефон
 local mobileCreated = CreateMobileButton()
 if mobileCreated then
     print("Mobile button created for touch device")
