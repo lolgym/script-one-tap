@@ -1,5 +1,5 @@
 -- ALL IN ONE (FINAL)
--- X = Menu | Z = AIM | F = FLY | E = DASH | B = BunnyHop
+-- X = Menu | Z = AIM | F = FLY | E = DASH | B = BunnyHop (PC ONLY)
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -50,44 +50,40 @@ local jumpCooldown = 0.05
 local CENTER_OFFSET = Vector2.new(0, -57)
 local isDrawingSupported = pcall(function() return Drawing.new("Line") end)
 
--- ========== BUNNY HOP (УНИВЕРСАЛЬНЫЙ) ==========
+-- ========== BUNNY HOP (ТОЛЬКО ПК) ==========
 local function ToggleBunnyHop()
     BunnyHop = not BunnyHop
     
     if BunnyHop then
+        if not UserInputService.KeyboardEnabled then
+            print("BUNNY HOP: PC only - Keyboard not detected")
+            BunnyHop = false
+            return
+        end
+        
         bunnyHopConn = RunService.Heartbeat:Connect(function()
             local char = LocalPlayer.Character
             if not char then return end
             local hum = char:FindFirstChild("Humanoid")
             if not hum then return end
-            local hrp = char:FindFirstChild("HumanoidRootPart")
             
             if hum.FloorMaterial ~= Enum.Material.Air then
-                local moving = false
-                
                 if UserInputService:IsKeyDown(Enum.KeyCode.W) or 
                    UserInputService:IsKeyDown(Enum.KeyCode.A) or 
                    UserInputService:IsKeyDown(Enum.KeyCode.S) or 
                    UserInputService:IsKeyDown(Enum.KeyCode.D) then
-                    moving = true
-                end
-                
-                if not moving and hrp then
-                    if math.abs(hrp.Velocity.X) > 0.5 or math.abs(hrp.Velocity.Z) > 0.5 then
-                        moving = true
+                    
+                    if tick() - lastJumpTime > jumpCooldown then
+                        lastJumpTime = tick()
+                        pcall(function()
+                            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+                            task.wait(0.01)
+                            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+                        end)
+                        pcall(function()
+                            hum.Jump = true
+                        end)
                     end
-                end
-                
-                if moving and tick() - lastJumpTime > jumpCooldown then
-                    lastJumpTime = tick()
-                    pcall(function()
-                        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
-                        task.wait(0.01)
-                        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
-                    end)
-                    pcall(function()
-                        hum.Jump = true
-                    end)
                 end
             end
         end)
@@ -99,7 +95,7 @@ local function ToggleBunnyHop()
         lastJumpTime = 0
     end
     
-    print("BUNNY HOP: " .. (BunnyHop and "ON" or "OFF"))
+    print("BUNNY HOP: " .. (BunnyHop and "ON" or "OFF") .. " (PC only)")
 end
 
 -- ========== DASH ==========
@@ -1589,7 +1585,7 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
-print("ALL IN ONE loaded. X = Menu, Z = AIM, F = FLY, E = DASH, B = BunnyHop")
+print("ALL IN ONE loaded. X = Menu, Z = AIM, F = FLY, E = DASH, B = BunnyHop (PC only)")
 print("Drawing supported: " .. tostring(isDrawingSupported))
 if isDrawingSupported then
     print("Health Bar will work via Drawing API")
